@@ -1,0 +1,29 @@
+[
+  {
+    "arguments": [
+      "/usr/bin/c++",
+      "-c",
+      "-std=c++17",
+      "-I",
+      "/Users/raulescobar/VulkanSDK/1.3.268.1/macOS/include",
+      "-I",
+      "include/stb_image",
+      "-I",
+      "include/entt",
+      "-I",
+      "include/glm",
+      "-I",
+      "include/glfw/include",
+      "-I",
+      "include/tinyobjloader",
+      "-I",
+      "include/glew-2.2.0/include",
+      "-o",
+      "bin/camera.o",
+      "src/camera.cpp"
+    ],
+    "directory": "/Users/raulescobar/Documents/research-lab/raycpp",
+    "file": "/Users/raulescobar/Documents/research-lab/raycpp/src/camera.cpp",
+    "output": "/Users/raulescobar/Documents/research-lab/raycpp/bin/camera.o"
+  }
+]
