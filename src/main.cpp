@@ -1,6 +1,8 @@
 #include <cstdlib>
 #include <entt.hpp>
+#include <iostream>
 #define GLM_FORCE_RADIANS
+#define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
 #include <glm/glm.hpp>
 #include <glm/gtc/type_ptr.hpp>
@@ -12,103 +14,63 @@
 #include "light.h"
 #include "material.h"
 #include "matrix_stack.h"
-#include "mesh.h"
-#include "phong_program.h"
-#include "texture.h"
-#include "texture_program.h"
 #include "tick.h"
 #include "transform.h"
-#include "vulkan/vulkan.hpp"
 #include "window.h"
-
-auto DrawPbr(const phong_program &program, const entt::registry &registry,
-             const camera &camera) -> void {
-  bind(program);
-
-  glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-  glm::mat4 perspective_mat = perspective(camera);
-  glm::mat4 view_mat = view(camera);
-
-  MatrixStack p(perspective_mat);
-  MatrixStack v(view_mat);
-  MatrixStack m;
-
-  auto light_view = registry.view<light, translation>();
-  for (auto [entity, light, translation] : light_view.each()) {
-    auto pos = v.stack.top() * glm::vec4(translation.position, 1.0f);
-    glUniform3f(program.lightPos, pos.x, pos.y, pos.z);
-    glUniform3f(program.lightColor, light.color.x, light.color.y,
-                light.color.z);
-  }
-
-  auto component_view =
-      registry.view<mesh_handle, translation, rotation, scale, material>();
-  for (auto [entity, mesh_handle, translation, rotation, scale, material] :
-       component_view.each()) {
-    m.push();
-    m *= glm::translate(glm::identity<glm::mat4>(), translation.position);
-    m *= glm::scale(glm::identity<glm::mat4>(), scale.scale);
-    m *= glm::toMat4(rotation.quaterion);
-    auto mv = v.stack.top() * m.stack.top();
-    auto imv = glm::transpose(glm::inverse(mv));
-    glUniformMatrix4fv(program.P, 1, GL_FALSE, glm::value_ptr(p.stack.top()));
-    glUniformMatrix4fv(program.MV, 1, GL_FALSE, glm::value_ptr(mv));
-    glUniformMatrix4fv(program.iMV, 1, GL_FALSE, glm::value_ptr(imv));
-    glUniform3f(program.ka, material.ka.x, material.ka.y, material.ka.z);
-    glUniform3f(program.ks, material.ks.x, material.ks.y, material.ks.z);
-    glUniform3f(program.kd, material.kd.x, material.kd.y, material.kd.z);
-    glUniform1f(program.s, material.s);
-
-    draw(mesh_handle);
-    m.pop();
-  }
-  unbind(program);
-}
-
-auto Drawtextured(const texture_program &program, const texture &texture,
-                  const entt::registry &registry, const camera &camera)
-    -> void {
-  bind(program);
-  bind(texture);
-
-  glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-  glm::mat4 perspective_mat = perspective(camera);
-  glm::mat4 view_mat = view(camera);
-
-  MatrixStack p(perspective_mat);
-  MatrixStack v(view_mat);
-  MatrixStack m;
-
-  auto component_view =
-      registry.view<mesh_handle, translation, rotation, scale>();
-  for (auto [entity, mesh_handle, translation, rotation, scale] :
-       component_view.each()) {
-    m.push();
-    m *= glm::translate(glm::identity<glm::mat4>(), translation.position);
-    m *= glm::scale(glm::identity<glm::mat4>(), scale.scale);
-    m *= glm::toMat4(rotation.quaterion);
-    auto mv = v.stack.top() * m.stack.top();
-    auto imv = glm::transpose(glm::inverse(mv));
-
-    glUniformMatrix4fv(program.P, 1, GL_FALSE, glm::value_ptr(p.stack.top()));
-    glUniformMatrix4fv(program.MV, 1, GL_FALSE, glm::value_ptr(mv));
-    glUniformMatrix4fv(program.iMV, 1, GL_FALSE, glm::value_ptr(imv));
-    glUniform1i(program.texture0, texture.unit);
-
-    draw(mesh_handle);
-    m.pop();
-  }
-  unbind(texture);
-  unbind(program);
-}
+struct vulkan_data {
+  VkInstance instance;
+};
 
 auto SetupSystem(entt::registry &registry) -> void {
+  // init window
   init_window_lib();
   window win = new_window(1080, 1080, "fps shooter");
   auto window_entity = registry.create();
   registry.emplace<window>(window_entity, win);
 
-  init_glew();
+  // init vulkan
+  VkInstance instance;
+
+  VkApplicationInfo appInfo{};
+  appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
+  appInfo.pApplicationName = "fps shooter";
+  appInfo.applicationVersion = VK_MAKE_VERSION(1, 0, 0);
+  appInfo.pEngineName = "No Engine";
+  appInfo.engineVersion = VK_MAKE_VERSION(1, 0, 0);
+  appInfo.apiVersion = VK_API_VERSION_1_0;
+
+  VkInstanceCreateInfo createInfo{};
+  createInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
+  createInfo.pApplicationInfo = &appInfo;
+
+  uint32_t glfwExtensionCount = 0;
+  const char **glfwExtensions;
+
+  glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
+
+  createInfo.enabledLayerCount = 0;
+
+  std::vector<const char *> requiredExtensions;
+
+  for (uint32_t i = 0; i < glfwExtensionCount; i++) {
+    requiredExtensions.emplace_back(glfwExtensions[i]);
+  }
+
+  requiredExtensions.emplace_back(
+      VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME);
+
+  createInfo.flags |= VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR;
+
+  createInfo.enabledExtensionCount = (uint32_t)requiredExtensions.size();
+  createInfo.ppEnabledExtensionNames = requiredExtensions.data();
+
+  if (vkCreateInstance(&createInfo, nullptr, &instance) != VK_SUCCESS) {
+    perror("Error creating vk instance");
+    exit(EXIT_FAILURE);
+  }
+
+  auto vulkan_entity = registry.create();
+  registry.emplace<vulkan_data>(vulkan_entity, instance);
 
   auto player_entity = registry.create();
   registry.emplace<camera>(player_entity, 0.01f,
@@ -116,25 +78,17 @@ auto SetupSystem(entt::registry &registry) -> void {
                                    // members to a settings component
   registry.emplace<translation>(player_entity, glm::vec3(0.0f, 1.0f, -5.0f));
   registry.emplace<rotation>(player_entity, glm::identity<glm::quat>());
-  registry.emplace<input>(player_entity, 0, glm::vec2(0.0f, 0.0f));
+  registry.emplace<input>(player_entity, (uint8_t)0, glm::vec2(0.0f, 0.0f));
 
-  phong_program phong_program =
-      new_phong_program("./shaders/phong_vertex_shader.glsl",
-                        "./shaders/phong_fragment_shader.glsl");
-  texture_program texture_program =
-      new_texture_program("./shaders/texture_vertex_shader.glsl",
-                          "./shaders/texture_fragment_shader.glsl");
-  texture texture = new_texture("./textures/texture.jpg", 0);
-
-  mesh_data cube = load_obj("./models/cube.obj");
-  mesh_handle cube_handle = from_mesh_data(cube);
+  // mesh_data cube = load_obj("./models/cube.obj");
+  // mesh_handle cube_handle = from_mesh_data(cube);
   material cube_material = new_material();
 
   const auto entity = registry.create();
   registry.emplace<translation>(entity, glm::vec3(0.0f, 0.0f, 0.0f));
   registry.emplace<scale>(entity, glm::vec3(1.0f, 1.0f, 1.0f));
-  registry.emplace<rotation>(entity, glm::identity<glm::quat>());
-  registry.emplace<mesh_handle>(entity, cube_handle);
+  // registry.emplace<rotation>(entity, glm::identity<glm::quat>());
+  // registry.emplace<mesh_handle>(entity, cube_handle);
   registry.emplace<material>(entity, cube_material);
 
   const auto light_entity = registry.create();
@@ -252,20 +206,26 @@ auto CleanUpSystem(const entt::registry &registry) -> void {
 
   drop_window(win);
   drop_window_lib();
+
+  auto vk_entity = registry.view<vulkan_data>().front();
+  auto vk_data = registry.get<vulkan_data>(vk_entity);
+  vkDestroyInstance(vk_data.instance, nullptr);
 }
 
 auto main() -> int {
   entt::registry registry;
   SetupSystem(registry);
 
-  // maybe put in program bind code
-  glClearColor(0.3f, 0.3f, 0.7f, 1.0f);
+  uint32_t extensionCount = 0;
+  vkEnumerateInstanceExtensionProperties(nullptr, &extensionCount, nullptr);
+
+  std::cout << extensionCount << " extensions supported\n";
   while (CheckIfQuitSystem(registry)) {
-    PrepareNextFrame(registry);
-    CaptureInputSystem(registry);
-    HandleInputSystem(registry);
-    UpdateSystem(registry);
-    RenderSystem(registry);
+    // PrepareNextFrame(registry);
+    // CaptureInputSystem(registry);
+    // HandleInputSystem(registry);
+    // UpdateSystem(registry);
+    // RenderSystem(registry);
   }
 
   CleanUpSystem(registry);

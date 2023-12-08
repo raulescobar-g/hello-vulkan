@@ -2,6 +2,7 @@
 rwildcard = $(wildcard $1$2) $(foreach d,$(wildcard $1*),$(call rwildcard,$d/,$2))
 platformpth = $(subst /,$(PATHSEP),$1)
 
+
 # Set global macros
 buildDir := bin
 executable := app
@@ -9,8 +10,8 @@ target := $(buildDir)/$(executable)
 sources := $(call rwildcard,src/,*.cpp)
 objects := $(patsubst src/%, $(buildDir)/%, $(patsubst %.cpp, %.o, $(sources)))
 depends := $(patsubst %.o, %.d, $(objects))
-compileFlags := -std=c++17 -I /Users/raulescobar/VulkanSDK/1.3.268.1/macOS/include -I include/stb_image -I include/entt -I include/glm -I include/glfw/include -I include/tinyobjloader
-linkFlags = -L lib/$(platform) -l glfw3 -L /Users/raulescobar/VulkanSDK/1.3.268.1/macOS/lib -l vulkan
+compileFlags := -std=c++17 -I $(VULKAN_SDK)/include -I include/stb_image -I include/entt -I include/glm -I include/glfw/include -I include/tinyobjloader
+linkFlags = -L lib/$(platform) -l glfw3 -L $(VULKAN_SDK)/lib -l vulkan.1.3.268
 
 # Check for Windows
 ifeq ($(OS), Windows_NT)
@@ -36,7 +37,7 @@ else
 		# Set macOS macros
 		platform := macOS
 		CXX ?= clang++
-		linkFlags += -framework OpenGL -framework Cocoa -framework IOKit
+		linkFlags += -framework Cocoa -framework IOKit -Wl,-rpath,$(VULKAN_SDK)/lib
 	endif
 
 	# Set UNIX macros

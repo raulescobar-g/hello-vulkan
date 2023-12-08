@@ -90,45 +90,8 @@ auto from_mesh_data(const mesh_data &data) -> mesh_handle {
 
   uint vertex_count = data.pos.size() * 3;
 
-  glGenVertexArrays(1, &vertex_array_object_id);
-  glBindVertexArray(vertex_array_object_id);
-
-  // Send the position array to the GPU
-  glGenBuffers(1, &position_buffer_id);
-  glBindBuffer(GL_ARRAY_BUFFER, position_buffer_id);
-  glBufferData(GL_ARRAY_BUFFER, data.pos.size() * sizeof(glm::vec3),
-               &data.pos[0], GL_STATIC_DRAW);
-  glEnableVertexAttribArray(
-      0); // Assuming 0 is the layout location for positions in the shader
-  glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, (const void *)0);
-
-  // Send the normal array to the GPU
-  glGenBuffers(1, &normal_buffer_id);
-  glBindBuffer(GL_ARRAY_BUFFER, normal_buffer_id);
-  glBufferData(GL_ARRAY_BUFFER, data.norm.size() * sizeof(glm::vec3),
-               &data.norm[0], GL_STATIC_DRAW);
-  glEnableVertexAttribArray(
-      1); // Assuming 1 is the layout location for normals in the shader
-  glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 0, (const void *)0);
-
-  // Send the texture array to the GPU
-  glGenBuffers(1, &texture_buffer_id);
-  glBindBuffer(GL_ARRAY_BUFFER, texture_buffer_id);
-  glBufferData(GL_ARRAY_BUFFER, data.tex.size() * sizeof(glm::vec2),
-               &data.tex[0], GL_STATIC_DRAW);
-  glEnableVertexAttribArray(2); // Assuming 2 is the layout location for texture
-                                // coordinates in the shader
-  glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 0, (const void *)0);
-
-  // Unbind the VAO
-  glBindVertexArray(0);
-
   mesh_handle h = {vertex_array_object_id, vertex_count};
   return h;
 };
 
-auto draw(const mesh_handle &handle) -> void {
-  glBindVertexArray(handle.vao);
-  glDrawArrays(GL_TRIANGLES, 0, handle.vertex_count);
-  glBindVertexArray(0);
-}
+auto draw(const mesh_handle &handle) -> void {}
